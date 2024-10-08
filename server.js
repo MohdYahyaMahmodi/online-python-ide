@@ -13,6 +13,16 @@ const PORT = process.env.PORT || 3050;
 // In-memory storage for active rooms
 const activeRooms = new Map();
 
+// Function to generate a random color
+function getRandomColor() {
+    const letters = '0123456789ABCDEF';
+    let color = '#';
+    for (let i = 0; i < 6; i++) {
+        color += letters[Math.floor(Math.random() * 16)];
+    }
+    return color;
+}
+
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
@@ -53,18 +63,26 @@ io.on('connection', (socket) => {
         socket.roomId = roomId;
 
         const room = activeRooms.get(roomId);
-        room.users.set(socket.id, { username, typing: false });
+        const userColor = getRandomColor();
+        room.users.set(socket.id, { username, typing: false, color: userColor });
 
         socket.emit('initial code', room.code);
+        socket.emit('user color', userColor);
         io.to(roomId).emit('user list', Array.from(room.users.values()));
         console.log(`${username} joined room ${roomId}`);
     });
 
-    socket.on('code change', ({ roomId, delta }) => {
+    socket.on('code change', ({ roomId, code, cursor }) => {
         if (activeRooms.has(roomId)) {
             const room = activeRooms.get(roomId);
-            room.code = applyDelta(room.code, delta);
-            socket.to(roomId).emit('code update', { delta, userId: socket.id });
+            room.code = code;
+            socket.to(roomId).emit('code update', { code, userId: socket.id, cursor });
+        }
+    });
+
+    socket.on('cursor move', ({ roomId, cursor }) => {
+        if (activeRooms.has(roomId)) {
+            socket.to(roomId).emit('cursor update', { userId: socket.id, cursor });
         }
     });
 
@@ -85,26 +103,12 @@ io.on('connection', (socket) => {
             const room = activeRooms.get(socket.roomId);
             room.users.delete(socket.id);
             io.to(socket.roomId).emit('user list', Array.from(room.users.values()));
+            io.to(socket.roomId).emit('user disconnected', socket.id);
             if (room.users.size === 0) {
                 activeRooms.delete(socket.roomId);
             }
         }
     });
 });
-
-function applyDelta(code, delta) {
-    const lines = code.split('\n');
-    const { start, end, action, lines: newLines } = delta;
-
-    if (action === 'insert') {
-        lines.splice(start.row, 0, ...newLines);
-    } else if (action === 'remove') {
-        lines.splice(start.row, end.row - start.row + 1);
-    } else if (action === 'replace') {
-        lines.splice(start.row, end.row - start.row + 1, ...newLines);
-    }
-
-    return lines.join('\n');
-}
 
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));

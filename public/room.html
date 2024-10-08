@@ -8,14 +8,31 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js"></script>
     <script src="https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js"></script>
+    <style>
+        .typing::after {
+            content: ' (typing...)';
+            color: #888;
+            font-style: italic;
+        }
+        #user-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin: 10px;
+        }
+        .user {
+            background-color: #2b2b2b;
+            padding: 5px 10px;
+            border-radius: 3px;
+        }
+        .remote-cursor {
+            position: absolute;
+            pointer-events: none;
+            width: 2px;
+            height: 17px;
+        }
+    </style>
 </head>
-<style>
-    .typing::after {
-        content: ' (typing...)';
-        color: #888;
-        font-style: italic;
-    }
-</style>
 <body>
     <nav>
         <button id="run-button"><i class="fas fa-play"></i> Run</button>
@@ -24,11 +41,11 @@
             <button id="copy-button"><i class="fas fa-copy"></i></button>
         </div>
     </nav>
+    <div id="user-list"></div>
     <div class="editor-container">
         <div id="editor"></div>
         <div id="output"></div>
     </div>
-    <div id="user-list"></div>
     <script src="/socket.io/socket.io.js"></script>
     <script src="js/room.js"></script>
 </body>
