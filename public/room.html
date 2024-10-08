@@ -9,6 +9,13 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js"></script>
     <script src="https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js"></script>
 </head>
+<style>
+    .typing::after {
+        content: ' (typing...)';
+        color: #888;
+        font-style: italic;
+    }
+</style>
 <body>
     <nav>
         <button id="run-button"><i class="fas fa-play"></i> Run</button>
@@ -21,6 +28,7 @@
         <div id="editor"></div>
         <div id="output"></div>
     </div>
+    <div id="user-list"></div>
     <script src="/socket.io/socket.io.js"></script>
     <script src="js/room.js"></script>
 </body>

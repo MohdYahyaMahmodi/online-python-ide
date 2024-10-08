@@ -24,7 +24,7 @@ app.get('/', (req, res) => {
 // Create a new room
 app.post('/api/create-room', (req, res) => {
     const roomId = uuidv4();
-    activeRooms.set(roomId, { users: new Set(), code: '' });
+    activeRooms.set(roomId, { users: new Map(), code: '' });
     res.json({ roomId });
 });
 
@@ -49,29 +49,62 @@ io.on('connection', (socket) => {
         }
 
         socket.join(roomId);
-        activeRooms.get(roomId).users.add(username);
-        socket.emit('initial code', activeRooms.get(roomId).code);
+        socket.username = username;
+        socket.roomId = roomId;
+
+        const room = activeRooms.get(roomId);
+        room.users.set(socket.id, { username, typing: false });
+
+        socket.emit('initial code', room.code);
+        io.to(roomId).emit('user list', Array.from(room.users.values()));
         console.log(`${username} joined room ${roomId}`);
     });
 
-    socket.on('code change', ({ roomId, code }) => {
+    socket.on('code change', ({ roomId, delta }) => {
         if (activeRooms.has(roomId)) {
-            activeRooms.get(roomId).code = code;
-            socket.to(roomId).emit('code update', code);
+            const room = activeRooms.get(roomId);
+            room.code = applyDelta(room.code, delta);
+            socket.to(roomId).emit('code update', { delta, userId: socket.id });
+        }
+    });
+
+    socket.on('typing', ({ roomId, isTyping }) => {
+        if (activeRooms.has(roomId)) {
+            const room = activeRooms.get(roomId);
+            const user = room.users.get(socket.id);
+            if (user) {
+                user.typing = isTyping;
+                io.to(roomId).emit('user typing', { userId: socket.id, isTyping });
+            }
         }
     });
 
     socket.on('disconnect', () => {
         console.log('Client disconnected');
-        activeRooms.forEach((room, roomId) => {
-            if (room.users.has(socket.username)) {
-                room.users.delete(socket.username);
-                if (room.users.size === 0) {
-                    activeRooms.delete(roomId);
-                }
+        if (socket.roomId && activeRooms.has(socket.roomId)) {
+            const room = activeRooms.get(socket.roomId);
+            room.users.delete(socket.id);
+            io.to(socket.roomId).emit('user list', Array.from(room.users.values()));
+            if (room.users.size === 0) {
+                activeRooms.delete(socket.roomId);
             }
-        });
+        }
     });
 });
+
+function applyDelta(code, delta) {
+    const lines = code.split('\n');
+    const { start, end, action, lines: newLines } = delta;
+
+    if (action === 'insert') {
+        lines.splice(start.row, 0, ...newLines);
+    } else if (action === 'remove') {
+        lines.splice(start.row, end.row - start.row + 1);
+    } else if (action === 'replace') {
+        lines.splice(start.row, end.row - start.row + 1, ...newLines);
+    }
+
+    return lines.join('\n');
+}
 
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
